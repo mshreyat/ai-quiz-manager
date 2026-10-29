@@ -1,0 +1,131 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum Difficulty {
+  easy
+  medium
+  hard
+}
+
+enum SessionStatus {
+  WAITING
+  ACTIVE
+  COMPLETED
+}
+
+model User {
+  id           String        @id
+  email        String?       @unique
+  name         String?
+  role         Role          @default(USER)
+  quizzes      Quiz[]
+  participants Participant[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([email])
+}
+
+model Quiz {
+  id               String       @id @default(uuid())
+  title            String
+  description      String       @default("")
+  category         String       @default("General")
+  difficulty       Difficulty   @default(medium)
+  isPublished      Boolean      @default(false)
+  timeLimitSeconds Int?
+  creatorId        String?
+  creator          User?        @relation(fields: [creatorId], references: [id], onDelete: SetNull)
+  questions        Question[]
+  sessions         Session[]
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@index([creatorId])
+  @@index([category])
+  @@index([difficulty])
+  @@index([isPublished])
+}
+
+model Question {
+  id               String    @id @default(uuid())
+  quizId           String
+  quiz             Quiz      @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  text             String
+  options          String[]
+  correctIndex     Int
+  explanation      String
+  timeLimitSeconds Int       @default(30)
+  order            Int       @default(0)
+  answers          Answer[]
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([quizId])
+  @@index([order])
+}
+
+model Session {
+  id                   String        @id @default(uuid())
+  quizId               String
+  quiz                 Quiz          @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  hostId               String?
+  accessCode           String        @unique
+  status               SessionStatus @default(WAITING)
+  currentQuestionIndex Int           @default(0)
+  participants         Participant[]
+  createdAt            DateTime      @default(now())
+  startedAt            DateTime?
+  endedAt              DateTime?
+
+  @@index([quizId])
+  @@index([accessCode])
+}
+
+model Participant {
+  id          String   @id @default(uuid())
+  sessionId   String
+  session     Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  nickname    String
+  score       Int      @default(0)
+  isConnected Boolean  @default(true)
+  answers     Answer[]
+  joinedAt    DateTime @default(now())
+
+  @@unique([sessionId, nickname])
+  @@index([sessionId])
+  @@index([userId])
+}
+
+model Answer {
+  id             String      @id @default(uuid())
+  participantId  String
+  participant    Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  questionId     String
+  question       Question    @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  selectedIndex  Int
+  isCorrect      Boolean
+  responseTimeMs Int
+  pointsAwarded  Int         @default(0)
+  answeredAt     DateTime    @default(now())
+
+  @@unique([participantId, questionId])
+  @@index([participantId])
+  @@index([questionId])
+}
